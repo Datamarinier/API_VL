@@ -10,6 +10,7 @@ library(tidyr)
 library(purrr)
 library(dplyr)
 library(reactable)
+library(tibble)
 
 #Single call functie
 call_api_once <- function(URL,path,query,...){
@@ -116,61 +117,114 @@ call_api_multiple_times <- function(iterator, URL, path, query, resultVector){
             objectstatus = "objectstatus", 
             titel = "titel",
             zittingsjaar = "zittingsjaar", 
+            materie = "materie",
             contacttype = list("contacttype", 1, "beschrijving")) %>%  
       unnest_longer(contacttype) %>% 
       filter(!is.na(idAct)) -> collection 
     
-    collection2 <- subset(collection, contacttype == "Vraagsteller" & type_activiteit == "vrageninterpellatie")
     
-    collection2 %>% 
+    #Actuele vragen dataset 
+    
+    vraagsteller <- subset(collection, contacttype == "Vraagsteller" & type_activiteit == "vrageninterpellatie")
+    
+    vraagsteller %>% 
        hoist(value, 
              naamMP = list("contacttype", 1, "contact", 1, "naam"),
              voornaamMP = list("contacttype", 1, "contact", 1, "voornaam"),
              fractie = list("contacttype", 1, "contact", 1, "fractie"),
              MP_ID = list("contacttype", 1, "contact", 1, "id")) %>% 
-             unnest_wider(fractie, names_repair = "unique") -> collection3
+             unnest_wider(fractie, names_repair = "unique") -> vraagsteller2
     
-    collection3 <- subset(collection3, select=-c(value, kleur, logo))
+    vraagsteller2 <- subset(vraagsteller2, select=-c(value, kleur, logo))
     
-    collection3 %>% 
+    vraagsteller2 %>% 
       rename(
         fractie = naam,
-        fractie_id = id) -> collection3    
+        fractie_id = id) -> vraagsteller2    
     
-    collection4 <- subset(collection, contacttype == "Ondervraagde minister" & type_activiteit == "vrageninterpellatie")
+    ondervr_ministers <- subset(collection, contacttype == "Ondervraagde minister" & type_activiteit == "vrageninterpellatie")
     
-    collection4 %>% 
+    ondervr_ministers %>% 
       hoist(value, 
             naamMP = list("contacttype", 1, "contact", 2, "naam"),
             voornaamMP = list("contacttype", 1, "contact", 2, "voornaam"),
             MP_ID = list("contacttype", 1, "contact", 2, "id")) %>% 
-         unnest(cols=c(naamMP, voornaamMP, MP_ID)) -> collection5
+         unnest(cols=c(naamMP, voornaamMP, MP_ID)) -> ondervr_ministers2
     
-    collection5 <- subset(collection5, select=-c(value))
+    ondervr_ministers2 <- subset(ondervr_ministers2, select=-c(value))
     
-        collection5 <- collection5 %>%
+    ondervr_ministers2 <- ondervr_ministers2 %>%
       add_column(fractie = NA, fractie_id = NA, 'zetel-aantal' = NA)
-    names(collection5)
+    names(ondervr_ministers2)
     
-    collection6 <- subset(collection, contacttype == "Spreker" & type_activiteit == "vrageninterpellatie")
+    actua_sprekers <- subset(collection, contacttype == "Spreker" & type_activiteit == "vrageninterpellatie")
     
-    collection6 %>% 
+    actua_sprekers %>% 
       hoist(value, 
             naamMP = list("contacttype", 1, "contact", 3, "naam"),
             voornaamMP = list("contacttype", 1, "contact", 3, "voornaam"),
             fractie = list("contacttype", 1, "contact", 3, "fractie"),
             MP_ID = list("contacttype", 1, "contact", 3, "id")) %>%  
       unnest_wider(fractie, names_repair = "unique") %>%
-      unnest(cols=c(naamMP, voornaamMP, MP_ID, id, naam, 'zetel-aantal')) -> collection7
+      unnest(cols=c(naamMP, voornaamMP, MP_ID, id, naam, 'zetel-aantal')) -> actua_sprekers2
     
-    collection7 <- subset(collection7, select=-c(value, kleur, logo))
+    actua_sprekers2 <- subset(actua_sprekers2, select=-c(value, kleur, logo))
     
-    collection7 %>% 
+        actua_sprekers2 %>% 
       rename(
         fractie = naam,
-        fractie_id = id) -> collection7
+        fractie_id = id) -> actua_sprekers2
     
-    actuele_vragen <- rbind(collection3, collection5,collection7)
+    actuele_vragen <- rbind(vraagsteller2, ondervr_ministers2, actua_sprekers2)
+    
+    
+    #parlementaire initiatieven dataset 
+    
+    indiener <- subset(collection, contacttype == "Indiener" & type_activiteit == "parlementair-initiatief")
+    
+    indiener %>% 
+      hoist(value, 
+            naamMP = list("contacttype", 1, "contact", 1, "naam"),
+            voornaamMP = list("contacttype", 1, "contact", 1, "voornaam"),
+            fractie = list("contacttype", 1, "contact", 1, "fractie"),
+            MP_ID = list("contacttype", 1, "contact", 1, "id")) %>% 
+      unnest_wider(fractie, names_repair = "unique") %>%
+      unnest(cols=c(naamMP, voornaamMP, MP_ID, id, naam, 'zetel-aantal')) -> indiener2
+   
+    indiener2 <- subset(indiener2, select=-c(value, kleur, logo))
+    
+    parl_sprekers <- subset(collection, contacttype == "Spreker" & type_activiteit == "parlementair-initiatief") 
+
+    parl_sprekers %>% 
+      hoist(value, 
+            naamMP = list("contacttype", 1, "contact", 2, "naam"),
+            voornaamMP = list("contacttype", 1, "contact", 2, "voornaam"),
+            fractie = list("contacttype", 1, "contact", 2, "fractie"),
+            MP_ID = list("contacttype", 1, "contact", 2, "id")) %>%  
+      unnest_wider(fractie, names_repair = "unique") %>%
+      unnest(cols=c(naamMP, voornaamMP, MP_ID, id, naam, 'zetel-aantal')) -> parl_sprekers2
+    
+    parl_sprekers2 <- subset(parl_sprekers2, select=-c(value, kleur, logo))
+    
+    
+    verslaggevers <- subset(collection, contacttype == "Verslaggever" & type_activiteit == "parlementair-initiatief" & naamAct == "Ontwerp van decreet") 
+    #moeilijkheid = verslaggevers zitten zowel op positie 2 als 3 --> dit deel gaat dus fout!
+    verslaggevers %>% 
+      hoist(value, 
+            naamMP = list("contacttype", 1, "contact", 2, "naam"),
+            voornaamMP = list("contacttype", 1, "contact", 2, "voornaam"),
+            MP_ID = list("contacttype", 1, "contact", 2, "id")) %>%
+    unnest(cols=c(naamMP, voornaamMP, MP_ID)) -> verslaggevers2
+      
+     
+      
+    verslaggevers2 <- subset(verslaggevers2, select=-c(value, kleur, logo, link...27))
+    
+ 
+    
+      
+
+    
     
               
     # dit geeft de journaallijnen     
